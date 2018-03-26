@@ -87,17 +87,21 @@ int chidb_Btree_open(const char *filename, chidb *db, BTree **bt)
 	uint8_t pageCacheSize[] = {0x00, 0x00, 0x4E, 0x20}; 
 	// Stores errors from function calls
 	int err; 
-	
+	FILE* test;
+	bool newFile = false;
+
+	if((test = fopen(filename, "r")) == NULL) {
+		// File does not exist yet
+		fclose(test);
+		newFile = true;
+	}
+
 	// Initialize pager and read in the header 
 	if((err = chidb_Pager_open(&pager, filename)) != CHIDB_OK) {
 		return err;
 	}
-	if (chidb_Pager_readHeader(pager, header) != CHIDB_OK) {
-		return CHIDB_ECORRUPTHEADER;
-	}
-
 	// Create a BTree and set members of BTree and Database
-	*bt = malloc(sizeof(BTree));
+	*bt = (BTree*) malloc(sizeof(BTree));
 	if(*bt == NULL) {
 		return CHIDB_ENOMEM;
 	}
@@ -105,27 +109,38 @@ int chidb_Btree_open(const char *filename, chidb *db, BTree **bt)
 	(*bt)->db = db;
 	db->bt = *bt;
 
-	// Check header is correct, just hardcoded checking, nothing special	
- 	if(	!memcmp("SQLite format 3", header, 0x0F) &&
-		!memcmp((uint8_t[]){ 0x01, 0x01, 0x00, 0x40, 0x20, 0x20 }, &header[0x12], 6) && 
-		!memcmp(fourZeroes, &header[0x20], 4) &&
-		!memcmp(fourZeroes, &header[0x24], 4) &&
-		!memcmp(zeroAndOne, &header[0x2C], 4) &&
-		!memcmp(fourZeroes, &header[0x34], 4) &&
-		!memcmp(zeroAndOne, &header[0x38], 4) &&
-		!memcmp(fourZeroes, &header[0x40], 4) &&
-		!memcmp(fourZeroes, &header[HEADER_FILECHANGE], 4) &&
-		!memcmp(fourZeroes, &header[HEADER_SCHEMA], 4) &&
-		!memcmp(pageCacheSize, &header[HEADER_PAGECACHESIZE], 4) &&
-		!memcmp(fourZeroes, &header[HEADER_COOKIE], 4)
-	) {
-		// If we made it here, the header is correct, set page size
-		uint16_t pageSize = get2byte(&header[HEADER_PAGESIZE]);
-		chidb_Pager_setPageSize(pager, pageSize);
-	} else {
-		return CHIDB_ECORRUPTHEADER;
-	}
+	if(!newFile) {
+		if (chidb_Pager_readHeader(pager, header) != CHIDB_OK) {
+			return CHIDB_ECORRUPTHEADER;
+		}
+		// Check header is correct, just hardcoded checking, nothing special	
+		if(	!memcmp("SQLite format 3", header, 0x0F) &&
+			!memcmp((uint8_t[]){ 0x01, 0x01, 0x00, 0x40, 0x20, 0x20 }, 
+				&header[0x12], 6) && 
+			!memcmp(fourZeroes, &header[0x20], 4) &&
+			!memcmp(fourZeroes, &header[0x24], 4) &&
+			!memcmp(zeroAndOne, &header[0x2C], 4) &&
+			!memcmp(fourZeroes, &header[0x34], 4) &&
+			!memcmp(zeroAndOne, &header[0x38], 4) &&
+			!memcmp(fourZeroes, &header[0x40], 4) &&
+			!memcmp(fourZeroes, &header[HEADER_FILECHANGE], 4) &&
+			!memcmp(fourZeroes, &header[HEADER_SCHEMA], 4) &&
+			!memcmp(pageCacheSize, &header[HEADER_PAGECACHESIZE], 4) &&
+			!memcmp(fourZeroes, &header[HEADER_COOKIE], 4)
+		) {
+			// If we made it here, the header is correct, set page size
+			uint16_t pageSize = get2byte(&header[HEADER_PAGESIZE]);
+			chidb_Pager_setPageSize(pager, pageSize);
+		} else {
+			return CHIDB_ECORRUPTHEADER;
+		}
 
+	} else {
+		chidb_Pager_setPageSize(pager, DEFAULT_PAGE_SIZE);
+		pager->n_pages = 0;
+		npage_t npage;
+		return chidb_Btree_newNode((*bt), &npage, PGTYPE_TABLE_LEAF);	
+	}
 
     return CHIDB_OK;
 }
@@ -251,12 +266,11 @@ int chidb_Btree_freeMemNode(BTree *bt, BTreeNode *btn)
  */
 int chidb_Btree_newNode(BTree *bt, npage_t *npage, uint8_t type)
 {
-    /* Your code goes here */
+	// load page
 	
-
-    return CHIDB_OK;
+	chidb_Pager_allocatePage(bt->pager, npage);
+	return chidb_Btree_initEmptyNode(bt, *npage, type);
 }
-
 
 /* Initialize a B-Tree node
  *
@@ -277,9 +291,87 @@ int chidb_Btree_newNode(BTree *bt, npage_t *npage, uint8_t type)
  */
 int chidb_Btree_initEmptyNode(BTree *bt, npage_t npage, uint8_t type)
 {
-    /* Your code goes here */
+	int err;
+	MemPage* page;
+	if((err = chidb_Pager_readPage(bt->pager, npage, &page) != CHIDB_OK)) {
+		return err;
+	}
+		
 
-    return CHIDB_OK;
+	uint8_t* data = page->data;
+
+	if(npage == 1) {
+		// Write header on first page
+		sprintf((char*) data, "SQLite format 3");
+		data = page->data + HEADER_PAGESIZE;
+		put2byte(data, bt->pager->page_size);
+		data = page->data + HEADER_JUNK;
+		*(data++) = 0x01;
+		*(data++) = 0x01;
+		*(data++) = 0x00;
+		*(data++) = 0x04;
+		*(data++) = 0x20;
+		*(data++) = 0x20;
+		
+		data = page->data + HEADER_FILECHANGE;
+		put4byte(data, 0);
+
+		data = page->data + HEADER_EMPTY;
+		put4byte(data, 0);
+		put4byte(data+4, 0);
+
+		data = page->data + HEADER_SCHEMA;
+		put4byte(data, 0);
+
+		data = page->data + HEADER_ONE;
+		put4byte(data, 1);
+		
+		data = page->data + HEADER_PAGECACHESIZE;
+		put4byte(data, 20000);
+
+		data = page->data + HEADER_EMPTYONE;
+		put4byte(data, 0);
+		put4byte(data+4, 1);
+
+		data = page->data + HEADER_COOKIE;
+		put4byte(data, 0);
+
+		data = page->data + HEADER_ZERO;
+		put4byte(data, 0);
+
+		data = page->data + HEADER_END + 1;
+
+		// Add free offset, which is different if not first cell
+		// Free offset also depends on if the node is internal
+		if(type == PGTYPE_TABLE_INTERNAL || type == PGTYPE_INDEX_INTERNAL) {
+			put2byte(data + PGHEADER_FREE_OFFSET, HEADER_END + 1 
+					+ INTPG_CELLSOFFSET_OFFSET);
+		} else {
+			put2byte(data + PGHEADER_FREE_OFFSET, HEADER_END + 1
+					+ LEAFPG_CELLSOFFSET_OFFSET);
+		}
+	} else {
+		if(type == PGTYPE_TABLE_INTERNAL || type == PGTYPE_INDEX_INTERNAL) {
+			put2byte(data + PGHEADER_FREE_OFFSET, INTPG_CELLSOFFSET_OFFSET);
+		} else {
+			put2byte(data + PGHEADER_FREE_OFFSET, LEAFPG_CELLSOFFSET_OFFSET);
+		}
+	}
+
+	*(data + PGHEADER_PGTYPE_OFFSET) = type;
+
+	put2byte(data + PGHEADER_NCELLS_OFFSET, 0);
+	put2byte(data + PGHEADER_CELL_OFFSET, bt->pager->page_size);
+	*(data + PGHEADER_ZERO_OFFSET) = 0;
+	if(type == INTPG_CELLSOFFSET_OFFSET || type == LEAFPG_CELLSOFFSET_OFFSET) {
+		put4byte(data + PGHEADER_RIGHTPG_OFFSET, 0);
+	}
+
+	if((err = chidb_Pager_writePage(bt->pager, page)) != CHIDB_OK) {
+		return err;
+	}
+
+    return chidb_Pager_releaseMemPage(bt->pager, page);
 }
 
 
@@ -303,9 +395,23 @@ int chidb_Btree_initEmptyNode(BTree *bt, npage_t npage, uint8_t type)
  */
 int chidb_Btree_writeNode(BTree *bt, BTreeNode *btn)
 {
-    /* Your code goes here */
+	MemPage* page = btn->page;
 
-    return CHIDB_OK;
+	uint8_t* data = page->data;
+	if(page->npage == 1) {
+		data += 100;
+	}
+
+	*(data + PGHEADER_PGTYPE_OFFSET) = btn->type;
+	put2byte(data + PGHEADER_FREE_OFFSET, btn->free_offset);
+	put2byte(data + PGHEADER_NCELLS_OFFSET, btn->n_cells);
+	put2byte(data + PGHEADER_CELL_OFFSET, btn->cells_offset);
+	
+	if(btn->type == PGTYPE_TABLE_INTERNAL || btn->type == PGTYPE_INDEX_INTERNAL) {
+		put4byte(data + PGHEADER_RIGHTPG_OFFSET, btn->right_page);
+	}
+
+    return chidb_Pager_writePage(bt->pager, page);
 }
 
 

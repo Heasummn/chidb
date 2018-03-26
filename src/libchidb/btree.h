@@ -85,10 +85,16 @@
 
 // Table Header offsets
 #define HEADER_PAGESIZE (0x10)
+#define HEADER_JUNK (0x12)
 #define HEADER_FILECHANGE (0x18)
+#define HEADER_EMPTY (0x20)
 #define HEADER_SCHEMA (0x28)
+#define HEADER_ONE (0x2C)
 #define HEADER_PAGECACHESIZE (0x30)
+#define HEADER_EMPTYONE (0x34)
 #define HEADER_COOKIE (0x3C)
+#define HEADER_ZERO (0x40)
+#define HEADER_END (0x63)
 
 // Advance declarations
 typedef struct BTreeCell BTreeCell;
