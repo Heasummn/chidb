@@ -79,7 +79,53 @@
  */
 int chidb_Btree_open(const char *filename, chidb *db, BTree **bt)
 {
-    /* Your code goes here */
+	Pager* pager;
+	// the header, and static arrays to make checking header easier
+	uint8_t header[100];
+	uint8_t fourZeroes[] = {0x00, 0x00, 0x00, 0x00};
+	uint8_t zeroAndOne[] = {0x00, 0x00, 0x00, 0x01};
+	uint8_t pageCacheSize[] = {0x00, 0x00, 0x4E, 0x20}; 
+	// Stores errors from function calls
+	int err; 
+	
+	// Initialize pager and read in the header 
+	if((err = chidb_Pager_open(&pager, filename)) != CHIDB_OK) {
+		return err;
+	}
+	if (chidb_Pager_readHeader(pager, header) != CHIDB_OK) {
+		return CHIDB_ECORRUPTHEADER;
+	}
+
+	// Create a BTree and set members of BTree and Database
+	*bt = malloc(sizeof(BTree));
+	if(*bt == NULL) {
+		return CHIDB_ENOMEM;
+	}
+	(*bt)->pager = pager;
+	(*bt)->db = db;
+	db->bt = *bt;
+
+	// Check header is correct, just hardcoded checking, nothing special	
+ 	if(	!memcmp("SQLite format 3", header, 0x0F) &&
+		!memcmp((uint8_t[]){ 0x01, 0x01, 0x00, 0x40, 0x20, 0x20 }, &header[0x12], 6) && 
+		!memcmp(fourZeroes, &header[0x20], 4) &&
+		!memcmp(fourZeroes, &header[0x24], 4) &&
+		!memcmp(zeroAndOne, &header[0x2C], 4) &&
+		!memcmp(fourZeroes, &header[0x34], 4) &&
+		!memcmp(zeroAndOne, &header[0x38], 4) &&
+		!memcmp(fourZeroes, &header[0x40], 4) &&
+		!memcmp(fourZeroes, &header[HEADER_FILECHANGE], 4) &&
+		!memcmp(fourZeroes, &header[HEADER_SCHEMA], 4) &&
+		!memcmp(pageCacheSize, &header[HEADER_PAGECACHESIZE], 4) &&
+		!memcmp(fourZeroes, &header[HEADER_COOKIE], 4)
+	) {
+		// If we made it here, the header is correct, set page size
+		uint16_t pageSize = get2byte(&header[HEADER_PAGESIZE]);
+		chidb_Pager_setPageSize(pager, pageSize);
+	} else {
+		return CHIDB_ECORRUPTHEADER;
+	}
+
 
     return CHIDB_OK;
 }
@@ -99,8 +145,9 @@ int chidb_Btree_open(const char *filename, chidb *db, BTree **bt)
  */
 int chidb_Btree_close(BTree *bt)
 {
-    /* Your code goes here */
 
+	chidb_Pager_close(bt->pager);
+	free(bt);
     return CHIDB_OK;
 }
 
@@ -128,8 +175,38 @@ int chidb_Btree_close(BTree *bt)
  */
 int chidb_Btree_getNodeByPage(BTree *bt, npage_t npage, BTreeNode **btn)
 {
-    /* Your code goes here */
+	MemPage* page;
+	int err;
 
+	 if ( !(*btn = (BTreeNode*) malloc(sizeof(BTreeNode)) ) ) {
+        return CHIDB_ENOMEM;
+	}
+
+	// load page
+	if((err = chidb_Pager_readPage(bt->pager, npage, &page)) != CHIDB_OK) {
+		return err;
+	}
+	
+	uint8_t* data = page->data;
+
+	if(npage == 1) {
+		// first page has header, so offset by 100 bytes
+		data += 100;
+	}
+
+	(*btn)->page = page;
+	(*btn)->type = *data;
+	(*btn)->free_offset = get2byte(data+1);
+	(*btn)->n_cells = get2byte(data+3);
+	(*btn)->cells_offset = get2byte(data+5);
+	if((*btn)->type == 0x05 || (*btn)->type == 0x02) {
+		// Only internal nodes have right page, and offset starts at 12
+		(*btn)->right_page = get4byte(data+8);
+		(*btn)->celloffset_array = data+12;
+	} else {
+		(*btn)->celloffset_array = data+8;
+	}
+	
     return CHIDB_OK;
 }
 
@@ -149,7 +226,8 @@ int chidb_Btree_getNodeByPage(BTree *bt, npage_t npage, BTreeNode **btn)
  */
 int chidb_Btree_freeMemNode(BTree *bt, BTreeNode *btn)
 {
-    /* Your code goes here */
+	chidb_Pager_releaseMemPage(bt->pager, btn->page);	
+	free(btn);
 
     return CHIDB_OK;
 }
@@ -174,6 +252,7 @@ int chidb_Btree_freeMemNode(BTree *bt, BTreeNode *btn)
 int chidb_Btree_newNode(BTree *bt, npage_t *npage, uint8_t type)
 {
     /* Your code goes here */
+	
 
     return CHIDB_OK;
 }

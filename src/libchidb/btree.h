@@ -83,6 +83,13 @@
 #define INDEXINTCELL_SIZE (16)
 #define INDEXLEAFCELL_SIZE (12)
 
+// Table Header offsets
+#define HEADER_PAGESIZE (0x10)
+#define HEADER_FILECHANGE (0x18)
+#define HEADER_SCHEMA (0x28)
+#define HEADER_PAGECACHESIZE (0x30)
+#define HEADER_COOKIE (0x3C)
+
 // Advance declarations
 typedef struct BTreeCell BTreeCell;
 typedef struct BTreeNode BTreeNode;
