@@ -87,18 +87,28 @@ int chidb_Btree_open(const char *filename, chidb *db, BTree **bt)
 	uint8_t pageCacheSize[] = {0x00, 0x00, 0x4E, 0x20}; 
 	// Stores errors from function calls
 	int err; 
-	FILE* test;
+	FILE* file = fopen(filename, "r");
 	bool newFile = false;
+	
 
-	if((test = fopen(filename, "r")) == NULL) {
-		// File does not exist yet
-		fclose(test);
+	if(file == NULL) {
+	    // File does not exist yet
+		fprintf(stderr, "Opening file!\n");
 		newFile = true;
+	} else {
+        fseek (file, 0, SEEK_END);
+        int size = ftell(file);
+        if(size == 0) {
+            // File exists, but is empty
+            newFile = true;
+
+        }
+        fclose(file);
 	}
 
-	// Initialize pager and read in the header 
+	// Initialize pager 
 	if((err = chidb_Pager_open(&pager, filename)) != CHIDB_OK) {
-		return err;
+	    return err;
 	}
 	// Create a BTree and set members of BTree and Database
 	*bt = (BTree*) malloc(sizeof(BTree));
@@ -309,7 +319,7 @@ int chidb_Btree_initEmptyNode(BTree *bt, npage_t npage, uint8_t type)
 		*(data++) = 0x01;
 		*(data++) = 0x01;
 		*(data++) = 0x00;
-		*(data++) = 0x04;
+		*(data++) = 0x40;
 		*(data++) = 0x20;
 		*(data++) = 0x20;
 		
