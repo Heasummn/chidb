@@ -445,7 +445,44 @@ int chidb_Btree_writeNode(BTree *bt, BTreeNode *btn)
  */
 int chidb_Btree_getCell(BTreeNode *btn, ncell_t ncell, BTreeCell *cell)
 {
-    /* Your code goes here */
+    // Can't find a cell that doesn't exist
+    if(btn->n_cells < ncell || ncell < 0) {
+        return CHIDB_ECELLNO;
+    }
+    
+    MemPage* page = btn->page; 
+    uint16_t offset = get2byte(((btn->celloffset_array) + ncell*2));  
+    
+    uint8_t* cell_data = page->data + offset;
+    cell->type = btn->type;
+    
+    if(cell->type == PGTYPE_TABLE_INTERNAL) {
+        // Reading a table internal cell, parse child and key
+        // Read child page
+        uint32_t child_page = get4byte(cell_data + TABLEINTCELL_CHILD_OFFSET);
+        cell->fields.tableInternal.child_page = child_page;
+
+        // Read key
+        uint32_t key;
+        getVarint32(cell_data + TABLEINTCELL_KEY_OFFSET, &key);
+        cell->key = key;
+
+    } else if (cell->type == PGTYPE_TABLE_LEAF) {
+        // reading a table leaf cell, parse size, key, and data
+        // Read data size
+        uint32_t data_size;
+        getVarint32(cell_data + TABLELEAFCELL_SIZE_OFFSET, &data_size);
+        cell->fields.tableLeaf.data_size = data_size; 
+
+        // Read key
+        uint32_t key;
+        getVarint32(cell_data + TABLELEAFCELL_KEY_OFFSET, &key);
+        cell->key = key;
+        
+        // set data
+        cell->fields.tableLeaf.data = cell_data + TABLELEAFCELL_DATA_OFFSET;
+    }
+
 
     return CHIDB_OK;
 }
@@ -476,7 +513,66 @@ int chidb_Btree_getCell(BTreeNode *btn, ncell_t ncell, BTreeCell *cell)
  */
 int chidb_Btree_insertCell(BTreeNode *btn, ncell_t ncell, BTreeCell *cell)
 {
-    /* Your code goes here */
+    MemPage* page = btn->page;
+    uint8_t* data = NULL;
+    uint8_t index_magic[] = {0x0B, 0x03, 0x04, 0x04};
+    int length;
+    
+    // Update cell count
+    btn->n_cells++;
+    // Parse cell into data
+    if(cell->type == PGTYPE_TABLE_INTERNAL) {
+        // internal table node
+        length = TABLEINTCELL_SIZE;
+        data = page->data + btn->cells_offset - length;
+        put4byte((unsigned char*) (data + TABLEINTCELL_CHILD_OFFSET), 
+            cell->fields.tableInternal.child_page);
+        putVarint32((unsigned char*) (data + TABLEINTCELL_KEY_OFFSET),
+            cell->key);
+    } else if(cell->type == PGTYPE_TABLE_LEAF) {
+        // table leaf node
+        uint32_t size = cell->fields.tableLeaf.data_size;
+        length = size + TABLELEAFCELL_SIZE_WITHOUTDATA;
+        data = page->data + btn->cells_offset - length;
+        
+        putVarint32(data + TABLELEAFCELL_SIZE_OFFSET, size);
+        putVarint32(data + TABLELEAFCELL_KEY_OFFSET, cell->key);
+        memcpy(data + TABLELEAFCELL_DATA_OFFSET, cell->fields.tableLeaf.data, size);
+    } else if (cell->type == PGTYPE_INDEX_INTERNAL) {
+        // index internal node       
+        length = INDEXINTCELL_SIZE;
+        data = page->data + btn->cells_offset - length;
+        put4byte(data + INDEXINTCELL_CHILD_OFFSET, 
+            cell->fields.indexInternal.child_page);
+        memcpy(data + INDEXINTCELL_MAGIC_OFFSET,
+            index_magic, 4);
+        put4byte(data + INDEXINTCELL_KEYIDX_OFFSET, 
+            cell->key);
+        put4byte(data + INDEXINTCELL_KEYPK_OFFSET, 
+            cell->fields.indexInternal.keyPk);
+    } else {
+        length = INDEXLEAFCELL_SIZE;
+        data = page->data + btn->cells_offset - length;
+        memcpy(data + INDEXLEAFCELL_MAGIC_OFFSET,
+            index_magic, 4);
+        put4byte(data + INDEXLEAFCELL_KEYIDX_OFFSET, 
+            cell->key);
+        put4byte(data + INDEXLEAFCELL_KEYPK_OFFSET, 
+            cell->fields.indexLeaf.keyPk);
+    }
+    
+    // Write data into cell area and update offset
+    btn->cells_offset -= length;
+    
+    // Add to cell offset array
+    uint8_t* offset_newcell = btn->celloffset_array + (2 * ncell);
+   
+    // Shift everything past our new cell offset over
+    memmove(offset_newcell + 2, offset_newcell, 
+        (page->data + btn->free_offset - offset_newcell));
+    
+    put2byte((unsigned char*) offset_newcell, btn->cells_offset);
+    btn->free_offset += 2;
 
     return CHIDB_OK;
 }
@@ -500,9 +596,45 @@ int chidb_Btree_insertCell(BTreeNode *btn, ncell_t ncell, BTreeCell *cell)
  */
 int chidb_Btree_find(BTree *bt, npage_t nroot, chidb_key_t key, uint8_t **data, uint16_t *size)
 {
-    /* Your code goes here */
+    int err;
+    BTreeNode* node;
 
-    return CHIDB_OK;
+    if((err = chidb_Btree_getNodeByPage(bt, nroot, &node)) != CHIDB_OK) {
+        return err;
+    }
+    ncell_t i = 0;
+    BTreeCell cell;
+    chidb_Btree_getCell(node, i, &cell);
+    // Search for next child
+    while(i < node->n_cells && (cell.key < key)) {
+        i++;
+        chidb_Btree_getCell(node, i, &cell);
+    }
+    if(i >= node->n_cells) {
+        // the key is in the right page
+        return chidb_Btree_find(bt, node->right_page, key, data, size);
+    } else {
+        if(cell.key == key) {
+            if(node->type == PGTYPE_TABLE_LEAF) {
+                *size = cell.fields.tableLeaf.data_size;
+                *data = (uint8_t *) malloc(sizeof(uint8_t) * (*size));
+                
+                if(*data == NULL) {
+                    return CHIDB_ENOMEM;
+                }
+
+                memcpy(*data, cell.fields.tableLeaf.data, *size);
+                return CHIDB_OK;
+            }
+        } 
+        if(node->type == PGTYPE_TABLE_LEAF) {
+            return CHIDB_ENOTFOUND;
+        }
+        return chidb_Btree_find(bt, 
+            cell.fields.tableInternal.child_page, key, data, size);
+    }   
+
+    return CHIDB_ENOTFOUND;
 }
 
 
@@ -529,8 +661,7 @@ int chidb_Btree_find(BTree *bt, npage_t nroot, chidb_key_t key, uint8_t **data, 
  */
 int chidb_Btree_insertInTable(BTree *bt, npage_t nroot, chidb_key_t key, uint8_t *data, uint16_t size)
 {
-    /* Your code goes here */
-
+    
     return CHIDB_OK;
 }
 
