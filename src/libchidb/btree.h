@@ -97,6 +97,9 @@
 #define HEADER_ZERO (0x40)
 #define HEADER_END (0x63)
 
+// assumes variable named err exists in function
+#define check_fail(test) do { if((err = test) != CHIDB_OK) return err;} while(false)
+
 // Advance declarations
 typedef struct BTreeCell BTreeCell;
 typedef struct BTreeNode BTreeNode;
@@ -162,6 +165,7 @@ struct BTreeCell
     } fields;
 };
 
+bool would_overflow(BTreeNode* node, BTreeCell* cell);
 
 int chidb_Btree_open(const char *filename, chidb *db, BTree **bt);
 int chidb_Btree_close(BTree *bt);

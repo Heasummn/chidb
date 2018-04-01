@@ -191,7 +191,15 @@ int chidb_dbm_op_Key (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Integer (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    // Seperate the operators
+    int32_t to_store = op->p1;
+    int32_t reg_address = op->p2;
+
+    // Get the register
+    chidb_dbm_register_t* reg = &stmt->reg[reg_address];
+
+    reg->type = REG_INT32;
+    reg->value.i = to_store;
 
     return CHIDB_OK;
 }
@@ -199,7 +207,15 @@ int chidb_dbm_op_Integer (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_String (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    // Seperate the operators
+    int32_t reg_address = op->p2;
+    char* string = op->p4;
+
+    // Get the register
+    chidb_dbm_register_t* reg = &stmt->reg[reg_address];
+
+    reg->type = REG_STRING;
+    reg->value.s = string;
 
     return CHIDB_OK;
 }
@@ -207,11 +223,15 @@ int chidb_dbm_op_String (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Null (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    
+    int32_t reg_address = op->p2;
+
+    // Get the register
+    chidb_dbm_register_t* reg = &stmt->reg[reg_address];
+
+    reg->type = REG_NULL;
 
     return CHIDB_OK;
-
-    return 0;
 }
 
 
@@ -238,10 +258,43 @@ int chidb_dbm_op_Insert (chidb_stmt *stmt, chidb_dbm_op_t *op)
     return CHIDB_OK;
 }
 
+/**
+ * -1: r2 < r1
+ * 0: r1 == r2
+ * 1: r2 > r1
+**/
+int chidb_dbm_op_compare_reg(chidb_dbm_register_t reg1, chidb_dbm_register_t reg2)
+{
+
+    if(reg1.type == REG_INT32) {
+        if(reg1.value.i < reg2.value.i)
+            return 1;
+        else if(reg1.value.i == reg2.value.i)
+            return 0;
+        else
+            return -1;
+    } else if(reg1.type == REG_STRING) {
+        return strcmp(reg2.value.s, reg1.value.s);
+    } else {
+        return 0; // NULL is undefined
+    }
+
+}
 
 int chidb_dbm_op_Eq (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    int32_t reg1_add = op->p1;
+    chidb_dbm_register_t* reg1 = &stmt->reg[reg1_add];
+
+    int32_t reg2_add = op->p3;
+    chidb_dbm_register_t* reg2 = &stmt->reg[reg2_add];
+    
+
+    int32_t jmp = op->p2;
+
+    if(chidb_dbm_op_compare_reg(*reg1, *reg2) == 0) {
+        stmt->pc = jmp;
+    }
 
     return CHIDB_OK;
 }
@@ -249,15 +302,36 @@ int chidb_dbm_op_Eq (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Ne (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    int32_t reg1_add = op->p1;
+    chidb_dbm_register_t* reg1 = &stmt->reg[reg1_add];
 
+    int32_t reg2_add = op->p3;
+    chidb_dbm_register_t* reg2 = &stmt->reg[reg2_add];
+    
+
+    int32_t jmp = op->p2;
+
+    if(chidb_dbm_op_compare_reg(*reg1, *reg2) != 0) {
+        stmt->pc = jmp;
+    }
     return CHIDB_OK;
 }
 
 
 int chidb_dbm_op_Lt (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    int32_t reg1_add = op->p1;
+    chidb_dbm_register_t* reg1 = &stmt->reg[reg1_add];
+
+    int32_t reg2_add = op->p3;
+    chidb_dbm_register_t* reg2 = &stmt->reg[reg2_add];
+    
+
+    int32_t jmp = op->p2;
+
+    if(chidb_dbm_op_compare_reg(*reg1, *reg2) < 0) {
+        stmt->pc = jmp;
+    }
 
     return CHIDB_OK;
 }
@@ -265,7 +339,18 @@ int chidb_dbm_op_Lt (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Le (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    int32_t reg1_add = op->p1;
+    chidb_dbm_register_t* reg1 = &stmt->reg[reg1_add];
+
+    int32_t reg2_add = op->p3;
+    chidb_dbm_register_t* reg2 = &stmt->reg[reg2_add];
+    
+
+    int32_t jmp = op->p2;
+
+    if(chidb_dbm_op_compare_reg(*reg1, *reg2) <= 0) {
+        stmt->pc = jmp;
+    }
 
     return CHIDB_OK;
 }
@@ -273,7 +358,18 @@ int chidb_dbm_op_Le (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Gt (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    int32_t reg1_add = op->p1;
+    chidb_dbm_register_t* reg1 = &stmt->reg[reg1_add];
+
+    int32_t reg2_add = op->p3;
+    chidb_dbm_register_t* reg2 = &stmt->reg[reg2_add];
+    
+
+    int32_t jmp = op->p2;
+
+    if(chidb_dbm_op_compare_reg(*reg1, *reg2) > 0) {
+        stmt->pc = jmp;
+    }
 
     return CHIDB_OK;
 }
@@ -281,7 +377,18 @@ int chidb_dbm_op_Gt (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Ge (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    int32_t reg1_add = op->p1;
+    chidb_dbm_register_t* reg1 = &stmt->reg[reg1_add];
+
+    int32_t reg2_add = op->p3;
+    chidb_dbm_register_t* reg2 = &stmt->reg[reg2_add];
+    
+
+    int32_t jmp = op->p2;
+
+    if(chidb_dbm_op_compare_reg(*reg1, *reg2) >= 0) {
+        stmt->pc = jmp;
+    }
 
     return CHIDB_OK;
 }
@@ -406,8 +513,6 @@ int chidb_dbm_op_SCopy (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Halt (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
-
-    return CHIDB_OK;
+    return CHIDB_DONE;
 }
 

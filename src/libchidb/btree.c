@@ -79,23 +79,23 @@
  */
 int chidb_Btree_open(const char *filename, chidb *db, BTree **bt)
 {
-	Pager* pager;
-	// the header, and static arrays to make checking header easier
-	uint8_t header[100];
-	uint8_t fourZeroes[] = {0x00, 0x00, 0x00, 0x00};
-	uint8_t zeroAndOne[] = {0x00, 0x00, 0x00, 0x01};
-	uint8_t pageCacheSize[] = {0x00, 0x00, 0x4E, 0x20}; 
-	// Stores errors from function calls
-	int err; 
-	FILE* file = fopen(filename, "r");
-	bool newFile = false;
-	
+    Pager* pager;
+    // the header, and static arrays to make checking header easier
+    uint8_t header[100];
+    uint8_t fourZeroes[] = {0x00, 0x00, 0x00, 0x00};
+    uint8_t zeroAndOne[] = {0x00, 0x00, 0x00, 0x01};
+    uint8_t pageCacheSize[] = {0x00, 0x00, 0x4E, 0x20}; 
+    // Stores errors from function calls
+    int err; 
+    FILE* file = fopen(filename, "r");
+    bool newFile = false;
+    
 
-	if(file == NULL) {
-	    // File does not exist yet
-		fprintf(stderr, "Opening file!\n");
-		newFile = true;
-	} else {
+    if(file == NULL) {
+        // File does not exist yet
+        fprintf(stderr, "Opening file!\n");
+        newFile = true;
+    } else {
         fseek (file, 0, SEEK_END);
         int size = ftell(file);
         if(size == 0) {
@@ -104,53 +104,53 @@ int chidb_Btree_open(const char *filename, chidb *db, BTree **bt)
 
         }
         fclose(file);
-	}
+    }
 
-	// Initialize pager 
-	if((err = chidb_Pager_open(&pager, filename)) != CHIDB_OK) {
-	    return err;
-	}
-	// Create a BTree and set members of BTree and Database
-	*bt = (BTree*) malloc(sizeof(BTree));
-	if(*bt == NULL) {
-		return CHIDB_ENOMEM;
-	}
-	(*bt)->pager = pager;
-	(*bt)->db = db;
-	db->bt = *bt;
+    // Initialize pager 
+    if((err = chidb_Pager_open(&pager, filename)) != CHIDB_OK) {
+        return err;
+    }
+    // Create a BTree and set members of BTree and Database
+    *bt = (BTree*) malloc(sizeof(BTree));
+    if(*bt == NULL) {
+        return CHIDB_ENOMEM;
+    }
+    (*bt)->pager = pager;
+    (*bt)->db = db;
+    db->bt = *bt;
 
-	if(!newFile) {
-		if (chidb_Pager_readHeader(pager, header) != CHIDB_OK) {
-			return CHIDB_ECORRUPTHEADER;
-		}
-		// Check header is correct, just hardcoded checking, nothing special	
-		if(	!memcmp("SQLite format 3", header, 0x0F) &&
-			!memcmp((uint8_t[]){ 0x01, 0x01, 0x00, 0x40, 0x20, 0x20 }, 
-				&header[0x12], 6) && 
-			!memcmp(fourZeroes, &header[0x20], 4) &&
-			!memcmp(fourZeroes, &header[0x24], 4) &&
-			!memcmp(zeroAndOne, &header[0x2C], 4) &&
-			!memcmp(fourZeroes, &header[0x34], 4) &&
-			!memcmp(zeroAndOne, &header[0x38], 4) &&
-			!memcmp(fourZeroes, &header[0x40], 4) &&
-			!memcmp(fourZeroes, &header[HEADER_FILECHANGE], 4) &&
-			!memcmp(fourZeroes, &header[HEADER_SCHEMA], 4) &&
-			!memcmp(pageCacheSize, &header[HEADER_PAGECACHESIZE], 4) &&
-			!memcmp(fourZeroes, &header[HEADER_COOKIE], 4)
-		) {
-			// If we made it here, the header is correct, set page size
-			uint16_t pageSize = get2byte(&header[HEADER_PAGESIZE]);
-			chidb_Pager_setPageSize(pager, pageSize);
-		} else {
-			return CHIDB_ECORRUPTHEADER;
-		}
+    if(!newFile) {
+        if (chidb_Pager_readHeader(pager, header) != CHIDB_OK) {
+            return CHIDB_ECORRUPTHEADER;
+        }
+        // Check header is correct, just hardcoded checking, nothing special    
+        if( !memcmp("SQLite format 3", header, 0x0F) &&
+            !memcmp((uint8_t[]){ 0x01, 0x01, 0x00, 0x40, 0x20, 0x20 }, 
+                &header[0x12], 6) && 
+            !memcmp(fourZeroes, &header[0x20], 4) &&
+            !memcmp(fourZeroes, &header[0x24], 4) &&
+            !memcmp(zeroAndOne, &header[0x2C], 4) &&
+            !memcmp(fourZeroes, &header[0x34], 4) &&
+            !memcmp(zeroAndOne, &header[0x38], 4) &&
+            !memcmp(fourZeroes, &header[0x40], 4) &&
+            !memcmp(fourZeroes, &header[HEADER_FILECHANGE], 4) &&
+            !memcmp(fourZeroes, &header[HEADER_SCHEMA], 4) &&
+            !memcmp(pageCacheSize, &header[HEADER_PAGECACHESIZE], 4) &&
+            !memcmp(fourZeroes, &header[HEADER_COOKIE], 4)
+        ) {
+            // If we made it here, the header is correct, set page size
+            uint16_t pageSize = get2byte(&header[HEADER_PAGESIZE]);
+            chidb_Pager_setPageSize(pager, pageSize);
+        } else {
+            return CHIDB_ECORRUPTHEADER;
+        }
 
-	} else {
-		chidb_Pager_setPageSize(pager, DEFAULT_PAGE_SIZE);
-		pager->n_pages = 0;
-		npage_t npage;
-		return chidb_Btree_newNode((*bt), &npage, PGTYPE_TABLE_LEAF);	
-	}
+    } else {
+        chidb_Pager_setPageSize(pager, DEFAULT_PAGE_SIZE);
+        pager->n_pages = 0;
+        npage_t npage;
+        return chidb_Btree_newNode((*bt), &npage, PGTYPE_TABLE_LEAF);   
+    }
 
     return CHIDB_OK;
 }
@@ -171,8 +171,8 @@ int chidb_Btree_open(const char *filename, chidb *db, BTree **bt)
 int chidb_Btree_close(BTree *bt)
 {
 
-	chidb_Pager_close(bt->pager);
-	free(bt);
+    chidb_Pager_close(bt->pager);
+    free(bt);
     return CHIDB_OK;
 }
 
@@ -200,38 +200,38 @@ int chidb_Btree_close(BTree *bt)
  */
 int chidb_Btree_getNodeByPage(BTree *bt, npage_t npage, BTreeNode **btn)
 {
-	MemPage* page;
-	int err;
+    MemPage* page;
+    int err;
 
-	 if ( !(*btn = (BTreeNode*) malloc(sizeof(BTreeNode)) ) ) {
+     if ( !(*btn = (BTreeNode*) malloc(sizeof(BTreeNode)) ) ) {
         return CHIDB_ENOMEM;
-	}
+    }
 
-	// load page
-	if((err = chidb_Pager_readPage(bt->pager, npage, &page)) != CHIDB_OK) {
-		return err;
-	}
-	
-	uint8_t* data = page->data;
+    // load page
+    if((err = chidb_Pager_readPage(bt->pager, npage, &page)) != CHIDB_OK) {
+        return err;
+    }
+    
+    uint8_t* data = page->data;
 
-	if(npage == 1) {
-		// first page has header, so offset by 100 bytes
-		data += 100;
-	}
+    if(npage == 1) {
+        // first page has header, so offset by 100 bytes
+        data += 100;
+    }
 
-	(*btn)->page = page;
-	(*btn)->type = *data;
-	(*btn)->free_offset = get2byte(data+1);
-	(*btn)->n_cells = get2byte(data+3);
-	(*btn)->cells_offset = get2byte(data+5);
-	if((*btn)->type == 0x05 || (*btn)->type == 0x02) {
-		// Only internal nodes have right page, and offset starts at 12
-		(*btn)->right_page = get4byte(data+8);
-		(*btn)->celloffset_array = data+12;
-	} else {
-		(*btn)->celloffset_array = data+8;
-	}
-	
+    (*btn)->page = page;
+    (*btn)->type = *data;
+    (*btn)->free_offset = get2byte(data+1);
+    (*btn)->n_cells = get2byte(data+3);
+    (*btn)->cells_offset = get2byte(data+5);
+    if((*btn)->type == 0x05 || (*btn)->type == 0x02) {
+        // Only internal nodes have right page, and offset starts at 12
+        (*btn)->right_page = get4byte(data+8);
+        (*btn)->celloffset_array = data+12;
+    } else {
+        (*btn)->celloffset_array = data+8;
+    }
+    
     return CHIDB_OK;
 }
 
@@ -251,8 +251,8 @@ int chidb_Btree_getNodeByPage(BTree *bt, npage_t npage, BTreeNode **btn)
  */
 int chidb_Btree_freeMemNode(BTree *bt, BTreeNode *btn)
 {
-	chidb_Pager_releaseMemPage(bt->pager, btn->page);	
-	free(btn);
+    chidb_Pager_releaseMemPage(bt->pager, btn->page);   
+    free(btn);
 
     return CHIDB_OK;
 }
@@ -276,10 +276,10 @@ int chidb_Btree_freeMemNode(BTree *bt, BTreeNode *btn)
  */
 int chidb_Btree_newNode(BTree *bt, npage_t *npage, uint8_t type)
 {
-	// load page
-	
-	chidb_Pager_allocatePage(bt->pager, npage);
-	return chidb_Btree_initEmptyNode(bt, *npage, type);
+    // load page
+    
+    chidb_Pager_allocatePage(bt->pager, npage);
+    return chidb_Btree_initEmptyNode(bt, *npage, type);
 }
 
 /* Initialize a B-Tree node
@@ -301,85 +301,85 @@ int chidb_Btree_newNode(BTree *bt, npage_t *npage, uint8_t type)
  */
 int chidb_Btree_initEmptyNode(BTree *bt, npage_t npage, uint8_t type)
 {
-	int err;
-	MemPage* page;
-	if((err = chidb_Pager_readPage(bt->pager, npage, &page) != CHIDB_OK)) {
-		return err;
-	}
-		
+    int err;
+    MemPage* page;
+    if((err = chidb_Pager_readPage(bt->pager, npage, &page) != CHIDB_OK)) {
+        return err;
+    }
+        
 
-	uint8_t* data = page->data;
+    uint8_t* data = page->data;
 
-	if(npage == 1) {
-		// Write header on first page
-		sprintf((char*) data, "SQLite format 3");
-		data = page->data + HEADER_PAGESIZE;
-		put2byte(data, bt->pager->page_size);
-		data = page->data + HEADER_JUNK;
-		*(data++) = 0x01;
-		*(data++) = 0x01;
-		*(data++) = 0x00;
-		*(data++) = 0x40;
-		*(data++) = 0x20;
-		*(data++) = 0x20;
-		
-		data = page->data + HEADER_FILECHANGE;
-		put4byte(data, 0);
+    if(npage == 1) {
+        // Write header on first page
+        sprintf((char*) data, "SQLite format 3");
+        data = page->data + HEADER_PAGESIZE;
+        put2byte(data, bt->pager->page_size);
+        data = page->data + HEADER_JUNK;
+        *(data++) = 0x01;
+        *(data++) = 0x01;
+        *(data++) = 0x00;
+        *(data++) = 0x40;
+        *(data++) = 0x20;
+        *(data++) = 0x20;
+        
+        data = page->data + HEADER_FILECHANGE;
+        put4byte(data, 0);
 
-		data = page->data + HEADER_EMPTY;
-		put4byte(data, 0);
-		put4byte(data+4, 0);
+        data = page->data + HEADER_EMPTY;
+        put4byte(data, 0);
+        put4byte(data+4, 0);
 
-		data = page->data + HEADER_SCHEMA;
-		put4byte(data, 0);
+        data = page->data + HEADER_SCHEMA;
+        put4byte(data, 0);
 
-		data = page->data + HEADER_ONE;
-		put4byte(data, 1);
-		
-		data = page->data + HEADER_PAGECACHESIZE;
-		put4byte(data, 20000);
+        data = page->data + HEADER_ONE;
+        put4byte(data, 1);
+        
+        data = page->data + HEADER_PAGECACHESIZE;
+        put4byte(data, 20000);
 
-		data = page->data + HEADER_EMPTYONE;
-		put4byte(data, 0);
-		put4byte(data+4, 1);
+        data = page->data + HEADER_EMPTYONE;
+        put4byte(data, 0);
+        put4byte(data+4, 1);
 
-		data = page->data + HEADER_COOKIE;
-		put4byte(data, 0);
+        data = page->data + HEADER_COOKIE;
+        put4byte(data, 0);
 
-		data = page->data + HEADER_ZERO;
-		put4byte(data, 0);
+        data = page->data + HEADER_ZERO;
+        put4byte(data, 0);
 
-		data = page->data + HEADER_END + 1;
+        data = page->data + HEADER_END + 1;
 
-		// Add free offset, which is different if not first cell
-		// Free offset also depends on if the node is internal
-		if(type == PGTYPE_TABLE_INTERNAL || type == PGTYPE_INDEX_INTERNAL) {
-			put2byte(data + PGHEADER_FREE_OFFSET, HEADER_END + 1 
-					+ INTPG_CELLSOFFSET_OFFSET);
-		} else {
-			put2byte(data + PGHEADER_FREE_OFFSET, HEADER_END + 1
-					+ LEAFPG_CELLSOFFSET_OFFSET);
-		}
-	} else {
-		if(type == PGTYPE_TABLE_INTERNAL || type == PGTYPE_INDEX_INTERNAL) {
-			put2byte(data + PGHEADER_FREE_OFFSET, INTPG_CELLSOFFSET_OFFSET);
-		} else {
-			put2byte(data + PGHEADER_FREE_OFFSET, LEAFPG_CELLSOFFSET_OFFSET);
-		}
-	}
+        // Add free offset, which is different if not first cell
+        // Free offset also depends on if the node is internal
+        if(type == PGTYPE_TABLE_INTERNAL || type == PGTYPE_INDEX_INTERNAL) {
+            put2byte(data + PGHEADER_FREE_OFFSET, HEADER_END + 1 
+                    + INTPG_CELLSOFFSET_OFFSET);
+        } else {
+            put2byte(data + PGHEADER_FREE_OFFSET, HEADER_END + 1
+                    + LEAFPG_CELLSOFFSET_OFFSET);
+        }
+    } else {
+        if(type == PGTYPE_TABLE_INTERNAL || type == PGTYPE_INDEX_INTERNAL) {
+            put2byte(data + PGHEADER_FREE_OFFSET, INTPG_CELLSOFFSET_OFFSET);
+        } else {
+            put2byte(data + PGHEADER_FREE_OFFSET, LEAFPG_CELLSOFFSET_OFFSET);
+        }
+    }
 
-	*(data + PGHEADER_PGTYPE_OFFSET) = type;
+    *(data + PGHEADER_PGTYPE_OFFSET) = type;
 
-	put2byte(data + PGHEADER_NCELLS_OFFSET, 0);
-	put2byte(data + PGHEADER_CELL_OFFSET, bt->pager->page_size);
-	*(data + PGHEADER_ZERO_OFFSET) = 0;
-	if(type == INTPG_CELLSOFFSET_OFFSET || type == LEAFPG_CELLSOFFSET_OFFSET) {
-		put4byte(data + PGHEADER_RIGHTPG_OFFSET, 0);
-	}
+    put2byte(data + PGHEADER_NCELLS_OFFSET, 0);
+    put2byte(data + PGHEADER_CELL_OFFSET, bt->pager->page_size);
+    *(data + PGHEADER_ZERO_OFFSET) = 0;
+    if(type == INTPG_CELLSOFFSET_OFFSET || type == LEAFPG_CELLSOFFSET_OFFSET) {
+        put4byte(data + PGHEADER_RIGHTPG_OFFSET, 0);
+    }
 
-	if((err = chidb_Pager_writePage(bt->pager, page)) != CHIDB_OK) {
-		return err;
-	}
+    if((err = chidb_Pager_writePage(bt->pager, page)) != CHIDB_OK) {
+        return err;
+    }
 
     return chidb_Pager_releaseMemPage(bt->pager, page);
 }
@@ -405,21 +405,21 @@ int chidb_Btree_initEmptyNode(BTree *bt, npage_t npage, uint8_t type)
  */
 int chidb_Btree_writeNode(BTree *bt, BTreeNode *btn)
 {
-	MemPage* page = btn->page;
+    MemPage* page = btn->page;
 
-	uint8_t* data = page->data;
-	if(page->npage == 1) {
-		data += 100;
-	}
+    uint8_t* data = page->data;
+    if(page->npage == 1) {
+        data += 100;
+    }
 
-	*(data + PGHEADER_PGTYPE_OFFSET) = btn->type;
-	put2byte(data + PGHEADER_FREE_OFFSET, btn->free_offset);
-	put2byte(data + PGHEADER_NCELLS_OFFSET, btn->n_cells);
-	put2byte(data + PGHEADER_CELL_OFFSET, btn->cells_offset);
-	
-	if(btn->type == PGTYPE_TABLE_INTERNAL || btn->type == PGTYPE_INDEX_INTERNAL) {
-		put4byte(data + PGHEADER_RIGHTPG_OFFSET, btn->right_page);
-	}
+    *(data + PGHEADER_PGTYPE_OFFSET) = btn->type;
+    put2byte(data + PGHEADER_FREE_OFFSET, btn->free_offset);
+    put2byte(data + PGHEADER_NCELLS_OFFSET, btn->n_cells);
+    put2byte(data + PGHEADER_CELL_OFFSET, btn->cells_offset);
+    
+    if(btn->type == PGTYPE_TABLE_INTERNAL || btn->type == PGTYPE_INDEX_INTERNAL) {
+        put4byte(data + PGHEADER_RIGHTPG_OFFSET, btn->right_page);
+    }
 
     return chidb_Pager_writePage(bt->pager, page);
 }
@@ -481,6 +481,15 @@ int chidb_Btree_getCell(BTreeNode *btn, ncell_t ncell, BTreeCell *cell)
         
         // set data
         cell->fields.tableLeaf.data = cell_data + TABLELEAFCELL_DATA_OFFSET;
+    } else if(cell->type == PGTYPE_INDEX_INTERNAL) {
+        uint32_t child_page = get4byte(cell_data + INDEXINTCELL_CHILD_OFFSET);
+        cell->fields.indexInternal.child_page = child_page;
+
+        cell->key = get4byte(cell_data + INDEXINTCELL_KEYIDX_OFFSET);
+        cell->fields.indexInternal.keyPk = get4byte(cell_data + INDEXINTCELL_KEYPK_OFFSET);
+    } else {
+        cell->key = get4byte(cell_data + INDEXLEAFCELL_KEYIDX_OFFSET);
+        cell->fields.indexLeaf.keyPk = get4byte(cell_data + INDEXLEAFCELL_KEYPK_OFFSET);
     }
 
 
@@ -602,39 +611,45 @@ int chidb_Btree_find(BTree *bt, npage_t nroot, chidb_key_t key, uint8_t **data, 
     if((err = chidb_Btree_getNodeByPage(bt, nroot, &node)) != CHIDB_OK) {
         return err;
     }
-    ncell_t i = 0;
-    BTreeCell cell;
-    chidb_Btree_getCell(node, i, &cell);
-    // Search for next child
-    while(i < node->n_cells && (cell.key < key)) {
-        i++;
+    
+    for(ncell_t i = 0; i < node->n_cells; i++) {
+        BTreeCell cell;
         chidb_Btree_getCell(node, i, &cell);
-    }
-    if(i >= node->n_cells) {
-        // the key is in the right page
-        return chidb_Btree_find(bt, node->right_page, key, data, size);
-    } else {
         if(cell.key == key) {
+           // We found it, or at least we're almost there
             if(node->type == PGTYPE_TABLE_LEAF) {
                 *size = cell.fields.tableLeaf.data_size;
                 *data = (uint8_t *) malloc(sizeof(uint8_t) * (*size));
                 
                 if(*data == NULL) {
+                    chidb_Btree_freeMemNode(bt, node);
                     return CHIDB_ENOMEM;
                 }
 
                 memcpy(*data, cell.fields.tableLeaf.data, *size);
-                return CHIDB_OK;
+                return chidb_Btree_freeMemNode(bt, node);
             }
-        } 
-        if(node->type == PGTYPE_TABLE_LEAF) {
-            return CHIDB_ENOTFOUND;
         }
-        return chidb_Btree_find(bt, 
-            cell.fields.tableInternal.child_page, key, data, size);
-    }   
+        if (key <= cell.key){
+            // It's lower down the tree (if that exists), so recurse
+            if(node->type == PGTYPE_TABLE_LEAF) {
+                chidb_Btree_freeMemNode(bt, node);
+                return CHIDB_ENOTFOUND;
+            }
+            chidb_Btree_freeMemNode(bt, node);
+            return chidb_Btree_find(bt, 
+                cell.fields.tableInternal.child_page, key, data, size);
+        }
+    }
+    // If we made it this far, it either doesn't exist, or is in the right page
+    if(node->type == PGTYPE_TABLE_LEAF) {
+        chidb_Btree_freeMemNode(bt, node);
+        return CHIDB_ENOTFOUND;
+    }
+    npage_t page = node->right_page;
+    chidb_Btree_freeMemNode(bt, node);
+    return chidb_Btree_find(bt, page, key, data, size);
 
-    return CHIDB_ENOTFOUND;
 }
 
 
@@ -661,8 +676,15 @@ int chidb_Btree_find(BTree *bt, npage_t nroot, chidb_key_t key, uint8_t **data, 
  */
 int chidb_Btree_insertInTable(BTree *bt, npage_t nroot, chidb_key_t key, uint8_t *data, uint16_t size)
 {
+    BTreeCell cell;
     
-    return CHIDB_OK;
+    cell.type = PGTYPE_TABLE_LEAF;
+    cell.key = key;
+    cell.fields.tableLeaf.data_size = size;
+    cell.fields.tableLeaf.data = data;
+
+    int err = chidb_Btree_insert(bt, nroot, &cell);
+    return err;
 }
 
 
@@ -687,11 +709,33 @@ int chidb_Btree_insertInTable(BTree *bt, npage_t nroot, chidb_key_t key, uint8_t
  */
 int chidb_Btree_insertInIndex(BTree *bt, npage_t nroot, chidb_key_t keyIdx, chidb_key_t keyPk)
 {
-    /* Your code goes here */
+    BTreeCell cell;
+    
+    cell.type = PGTYPE_INDEX_LEAF;
+    cell.key = keyIdx;
+    cell.fields.indexInternal.keyPk = keyPk;
 
-    return CHIDB_OK;
+    return chidb_Btree_insert(bt, nroot, &cell);
 }
 
+// helper function to check if a node can fit a certain cell
+// uses pointers to avoid making copy
+bool would_overflow(BTreeNode* node, BTreeCell* cell) {
+    uint16_t available = node->cells_offset - node->free_offset;
+
+    uint16_t size_cell = 0;
+    if(cell->type == PGTYPE_TABLE_INTERNAL) {
+        size_cell = TABLEINTCELL_SIZE;
+    } else if (cell->type == PGTYPE_TABLE_LEAF) {
+        size_cell = TABLELEAFCELL_SIZE_WITHOUTDATA + cell->fields.tableLeaf.data_size;
+    } else if (cell->type == PGTYPE_INDEX_INTERNAL) {
+        size_cell = INDEXINTCELL_SIZE;
+    } else {
+        size_cell = INDEXLEAFCELL_SIZE;
+    }
+
+    return (size_cell > available);
+}
 
 /* Insert a BTreeCell into a B-Tree
  *
@@ -717,10 +761,61 @@ int chidb_Btree_insertInIndex(BTree *bt, npage_t nroot, chidb_key_t keyIdx, chid
  */
 int chidb_Btree_insert(BTree *bt, npage_t nroot, BTreeCell *btc)
 {
-    /* Your code goes here */
+    int err;
+    BTreeNode* root;
+    check_fail(chidb_Btree_getNodeByPage(bt, nroot, &root));
 
-    return CHIDB_OK;
+    // If root is full
+    if(would_overflow(root, btc)) {
+        // We need to move all of roots contents into a new node
+        // And we need to make that node its right page
+
+        // First, make a new node
+        BTreeNode* new_right;
+        npage_t new_right_num;
+        check_fail(chidb_Btree_newNode(bt, &new_right_num, root->type));
+        check_fail(chidb_Btree_getNodeByPage(bt, new_right_num, &new_right));
+
+        for(ncell_t i = 0; i < root->n_cells; i++) {
+            BTreeCell temp;
+            check_fail(chidb_Btree_getCell(root, i, &temp));
+            check_fail(chidb_Btree_insertCell(new_right, i, &temp));
+        }
+
+        // Empty root and reinit it as an internal node
+        check_fail(chidb_Btree_freeMemNode(bt, root));
+
+        // Roots old right page becomes new nodes right page
+        new_right->right_page = root->right_page;
+        if(new_right->type == PGTYPE_TABLE_LEAF || new_right->type == PGTYPE_TABLE_INTERNAL) {
+            // reinit as a table internal
+            check_fail(chidb_Btree_initEmptyNode(bt, nroot, PGTYPE_TABLE_INTERNAL));
+        } else {
+            // reinit as an index internal
+            check_fail(chidb_Btree_initEmptyNode(bt, nroot, PGTYPE_INDEX_INTERNAL));
+        }
+
+        // Open root again and set it's right page
+        check_fail(chidb_Btree_getNodeByPage(bt, nroot, &root));
+        root->right_page = new_right_num;
+
+        check_fail(chidb_Btree_writeNode(bt, root));
+        check_fail(chidb_Btree_writeNode(bt, new_right));
+
+        check_fail(chidb_Btree_freeMemNode(bt, root));
+        check_fail(chidb_Btree_freeMemNode(bt, new_right));
+
+        // Split the new node
+        npage_t other_child; // throwaway
+        check_fail(chidb_Btree_split(bt, nroot, new_right_num, 0, &other_child));
+        
+        // Write and close root and new child
+    }  
+
+    return chidb_Btree_insertNonFull(bt, nroot, btc);
+
 }
+
 
 /* Insert a BTreeCell into a non-full B-Tree node
  *
@@ -747,8 +842,87 @@ int chidb_Btree_insert(BTree *bt, npage_t nroot, BTreeCell *btc)
  */
 int chidb_Btree_insertNonFull(BTree *bt, npage_t npage, BTreeCell *btc)
 {
-    /* Your code goes here */
+    int err;
+    bool found = false;
 
+    BTreeNode* node;
+    if((err = chidb_Btree_getNodeByPage(bt, npage, &node)) != CHIDB_OK) {
+        return err;
+    }
+
+    chidb_key_t key = btc->key;
+    BTreeCell search_cell;
+    if(node->type == PGTYPE_TABLE_LEAF || node->type == PGTYPE_INDEX_LEAF) { 
+        int i;
+        for(i = 0; i < node->n_cells; i++) {
+            chidb_Btree_getCell(node, i, &search_cell);
+            if(key < search_cell.key) {
+                break;
+            }
+            else if (search_cell.key == key)
+                return CHIDB_EDUPLICATE;
+        }
+       
+        chidb_Btree_insertCell(node, i, btc); 
+        if((err = chidb_Btree_writeNode(bt, node)) != CHIDB_OK) {
+            return err;
+        }
+        return CHIDB_OK;
+    } else {
+        int i; 
+        for(i = 0; i < node->n_cells; i++) {
+            chidb_Btree_getCell(node, i, &search_cell);
+            if(search_cell.key > key) {
+                found = true;
+                break;
+            }
+            else if (search_cell.key == key)
+                return CHIDB_EDUPLICATE;
+        }
+        
+        if(!found) {
+            npage_t right_page = node->right_page;
+            
+            check_fail(chidb_Btree_freeMemNode(bt, node));
+
+            BTreeNode* right_page_node;
+            check_fail(chidb_Btree_getNodeByPage(bt, right_page, &right_page_node));
+
+            if(would_overflow(right_page_node, btc)) {
+                npage_t new_node;
+
+                check_fail(chidb_Btree_freeMemNode(bt, right_page_node));
+                
+                check_fail(chidb_Btree_split(bt, npage, right_page, i, &new_node));
+
+                return chidb_Btree_insertNonFull(bt, npage, btc);
+            }
+            return chidb_Btree_insertNonFull(bt, right_page, btc);
+        }
+        
+        npage_t child_num;
+        if(node->type == PGTYPE_TABLE_INTERNAL) {
+            child_num = search_cell.fields.tableInternal.child_page;
+        } else {
+            child_num = search_cell.fields.indexInternal.child_page;
+        }
+        
+        BTreeNode* child_node;
+        // close our current node
+        check_fail(chidb_Btree_freeMemNode(bt, node));
+        check_fail(chidb_Btree_getNodeByPage(bt, child_num, &child_node));
+        
+        if(would_overflow(child_node, btc)) {
+            npage_t new_node; // We don't use this, but we need to give it
+            // If the child would overflow, split it
+            check_fail(chidb_Btree_split(bt, npage, child_num, i, &new_node));
+            return chidb_Btree_insertNonFull(bt, npage, btc);
+        }
+
+        return chidb_Btree_insertNonFull(bt, child_num, btc);
+    }
+    
+    
     return CHIDB_OK;
 }
 
@@ -778,8 +952,139 @@ int chidb_Btree_insertNonFull(BTree *bt, npage_t npage, BTreeCell *btc)
  */
 int chidb_Btree_split(BTree *bt, npage_t npage_parent, npage_t npage_child, ncell_t parent_ncell, npage_t *npage_child2)
 {
-    /* Your code goes here */
+    int err;
+    // Get parent and child nodes
+    BTreeNode* parent;
+    check_fail(chidb_Btree_getNodeByPage(bt, npage_parent, &parent));
+
+    BTreeNode* child;
+    check_fail(chidb_Btree_getNodeByPage(bt, npage_child, &child));
+
+    // Step 1: find median
+    ncell_t median = child->n_cells/2; 
+
+    // Step 2: Create new node
+    
+    // 2a: Get page number of new node in npage_child2
+    if((err = chidb_Btree_newNode(bt, npage_child2, child->type)) != CHIDB_OK) {
+        return err;
+    }
+    
+    // 2b: Load in new node 
+    BTreeNode* new_node;
+    if((err = chidb_Btree_getNodeByPage(bt, *npage_child2, &new_node)) != CHIDB_OK) {
+        return err;
+    }
+    
+    // Step 3: Move the cells before median
+    BTreeCell temp_cell;
+    ncell_t top_half = 0; // once moved, we need to reset the child cells top half
+    for(ncell_t i = 0; i < median; i++, top_half++) {
+        // get
+        check_fail(chidb_Btree_getCell(child, i, &temp_cell));
+        // insert
+        check_fail(chidb_Btree_insertCell(new_node, i, &temp_cell)); 
+    }
+
+    // Step 3b: Move median node if neccesary, store it nonetheless
+    BTreeCell median_cell;
+    check_fail(chidb_Btree_getCell(child, median, &median_cell));
+    if(child->type == PGTYPE_TABLE_LEAF) {
+        // insert
+        check_fail(chidb_Btree_insertCell(new_node, median, &median_cell));
+        top_half++;
+    }
+     
+
+
+    // We need to change the right_page to the child of the last cell we moved
+    // the last cell we moved is stored in median_cell
+    if(child->type == PGTYPE_TABLE_INTERNAL) {
+        new_node->right_page = median_cell.fields.tableInternal.child_page;
+    }
+    
+    if(child->type == PGTYPE_INDEX_INTERNAL) {
+        new_node->right_page = median_cell.fields.indexInternal.child_page;
+    }
+
+    // Step 3c: set original child to top half
+    
+    // First we need to store the top half somewhere
+    BTreeNode* top;
+    npage_t top_page;
+    
+    // Create temp top node
+    check_fail(chidb_Btree_newNode(bt, &top_page, child->type));
+    check_fail(chidb_Btree_getNodeByPage(bt, top_page, &top));
+
+
+    // Copy top half into top
+    for(ncell_t i = top_half; i < child->n_cells; i++) {
+        BTreeCell to_insert;
+        // get
+        check_fail(chidb_Btree_getCell(child, i, &to_insert));
+
+        // insert
+        check_fail(chidb_Btree_insertCell(top, i - top_half, &to_insert));
+    }
+    
+
+
+    // Now we reset the child
+    // (this is only needed because we have no method to delete cells)
+    npage_t child_right = child->right_page; // Need to keep right cell as well
+
+    check_fail(chidb_Btree_freeMemNode(bt, child)); // "empty" the child
+    check_fail(chidb_Btree_initEmptyNode(bt, npage_child, top->type)); // "recreate" it
+    check_fail(chidb_Btree_getNodeByPage(bt, npage_child, &child));
+
+
+    child->right_page = child_right;
+    
+    // fill it with top half
+    for(ncell_t i = 0; i < top->n_cells; i++) {
+        BTreeCell to_insert;
+
+        check_fail(chidb_Btree_getCell(top, i, &to_insert));
+        check_fail(chidb_Btree_insertCell(child, i, &to_insert)); 
+    }
+    
+    
+    // Step 4: move median cell into parent
+    // Step 4a: reassign type
+    if(median_cell.type == PGTYPE_INDEX_LEAF) { // can't be leaf, so we must convert
+        median_cell.fields.indexInternal.keyPk = 
+            median_cell.fields.indexLeaf.keyPk;
+    }
+    median_cell.type = parent->type;
+
+    // step 4b: reassign child
+    if(median_cell.type == PGTYPE_TABLE_INTERNAL) {
+        median_cell.fields.tableInternal.child_page = *npage_child2;
+    } else if (median_cell.type == PGTYPE_INDEX_INTERNAL) {
+        median_cell.fields.indexInternal.child_page = *npage_child2;
+    }
+       
+    // Step 4c: Insert into parent
+    check_fail(chidb_Btree_insertCell(parent, parent_ncell, &median_cell));
+
+    // Step 5: Clean up
+    // First, erase any sign of our temp node, top
+    check_fail(chidb_Btree_freeMemNode(bt, top));
+    bt->pager->n_pages--;
+    
+    // write nodes to disk
+    check_fail(chidb_Btree_writeNode(bt, parent));
+    check_fail(chidb_Btree_writeNode(bt, child));
+    check_fail(chidb_Btree_writeNode(bt, new_node));
+
+    // delete nodes
+    check_fail(chidb_Btree_freeMemNode(bt, parent));
+    check_fail(chidb_Btree_freeMemNode(bt, child));
+    check_fail(chidb_Btree_freeMemNode(bt, new_node));
+    
 
     return CHIDB_OK;
 }
+
 
