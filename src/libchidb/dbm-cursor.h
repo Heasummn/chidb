@@ -43,6 +43,7 @@
 
 #include "chidbInt.h"
 #include "btree.h"
+#include "simclist.h"
 
 typedef enum chidb_dbm_cursor_type
 {
@@ -51,15 +52,38 @@ typedef enum chidb_dbm_cursor_type
     CURSOR_WRITE
 } chidb_dbm_cursor_type_t;
 
+// This struct will store a BTreeNode and information about it
+// We can use a list of these to hold a trail back to the root
+typedef struct chidb_dbm_trail_node
+{
+    BTreeNode* node;
+    ncell_t cell_num;
+
+} chidb_dbm_trail_node_t;
+
 typedef struct chidb_dbm_cursor
 {
     chidb_dbm_cursor_type_t type;
-
-    /* Your code goes here */
+   
+    npage_t root_page; // for rewinding
+    list_t root_trail; // a list back to the root
+    BTreeCell cell; // The current cell
 
 } chidb_dbm_cursor_t;
 
+/* Trail functions */
+int chidb_dbm_trail_node_new(BTree* tree, npage_t page, chidb_dbm_trail_node_t** node);
+
 /* Cursor function definitions go here */
+int chidb_dbm_cursor_new(BTree* tree, npage_t root, chidb_dbm_cursor_t* cursor);
+
+int chidb_dbm_cursor_rewind(BTree* tree, chidb_dbm_cursor_t* cursor);
+
+int chidb_dbm_cursor_table_move(BTree* tree, chidb_dbm_cursor_t* cursor, bool forward);
+
+int chidb_dbm_cursor_table_up(BTree* tree, chidb_dbm_cursor_t* cursor, bool forward);
+
+int chidb_dbm_cursor_table_down(BTree* tree, chidb_dbm_cursor_t* cursor, bool forward);
 
 
 #endif /* DBM_CURSOR_H_ */

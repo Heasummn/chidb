@@ -89,7 +89,11 @@ int chidb_dbm_op_Noop (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_OpenRead (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+
+    chidb_dbm_cursor_t* cursor = &stmt->cursors[op->p1]; 
+    chidb_dbm_cursor_new(stmt->db->bt, stmt->reg[op->p2].value.i, cursor);
+
+    cursor->type = CURSOR_READ; 
 
     return CHIDB_OK;
 }
@@ -97,8 +101,11 @@ int chidb_dbm_op_OpenRead (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_OpenWrite (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
 
+    chidb_dbm_cursor_t* cursor = &stmt->cursors[op->p1]; 
+    chidb_dbm_cursor_new(stmt->db->bt, stmt->reg[op->p2].value.i, cursor);
+    
+    cursor->type = CURSOR_WRITE;
     return CHIDB_OK;
 }
 
@@ -113,7 +120,9 @@ int chidb_dbm_op_Close (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Rewind (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+
+    chidb_dbm_cursor_t* cursor = &stmt->cursors[op->p1];
+    chidb_dbm_cursor_rewind(stmt->db->bt, cursor);
 
     return CHIDB_OK;
 }
@@ -121,7 +130,12 @@ int chidb_dbm_op_Rewind (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Next (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+
+    chidb_dbm_cursor_t* cursor = &stmt->cursors[op->p1];
+    if(chidb_dbm_cursor_table_move(stmt->db->bt, cursor, true) != CHIDB_CANTMOVE) {
+        stmt->pc = op->p2;
+    } 
+
 
     return CHIDB_OK;
 }
@@ -129,7 +143,10 @@ int chidb_dbm_op_Next (chidb_stmt *stmt, chidb_dbm_op_t *op)
 
 int chidb_dbm_op_Prev (chidb_stmt *stmt, chidb_dbm_op_t *op)
 {
-    /* Your code goes here */
+    chidb_dbm_cursor_t* cursor = &stmt->cursors[op->p1];
+    if(chidb_dbm_cursor_table_move(stmt->db->bt, cursor, false) != CHIDB_CANTMOVE) {
+        stmt->pc = op->p2;
+    } 
 
     return CHIDB_OK;
 }

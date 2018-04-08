@@ -90,7 +90,6 @@ int chidb_Btree_open(const char *filename, chidb *db, BTree **bt)
     FILE* file = fopen(filename, "r");
     bool newFile = false;
     
-
     if(file == NULL) {
         // File does not exist yet
         fprintf(stderr, "Opening file!\n");
